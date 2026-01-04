@@ -225,6 +225,38 @@
     let isRunning = false;
     let intervalId = null;
 
+    // --- Wake Lock (keep screen awake) ---
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    if (!("wakeLock" in navigator)) return;
+    wakeLock = await navigator.wakeLock.request("screen");
+  } catch (err) {
+    // Browser may block it, or user may deny it.
+    wakeLock = null;
+  }
+}
+
+async function releaseWakeLock() {
+  try {
+    if (wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch (err) {
+    wakeLock = null;
+  }
+}
+
+// Re-acquire if the tab becomes visible again
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && isRunning) {
+    requestWakeLock();
+  }
+});
+
+
     // --- Elements ---
     const exerciseNameEl = document.getElementById("exerciseName");
     const exerciseStepEl = document.getElementById("exerciseStep");
@@ -288,11 +320,12 @@
     }
 
     function stopTimer() {
-      isRunning = false;
-      if (intervalId) clearInterval(intervalId);
-      intervalId = null;
-      updateUI();
-    }
+  isRunning = false;
+  releaseWakeLock();
+  if (intervalId) clearInterval(intervalId);
+  intervalId = null;
+  updateUI();
+}
 
     function nextExercise() {
       if (currentIndex < exercises.length - 1) {
@@ -325,11 +358,12 @@
     }
 
     function startTimer() {
-      if (isRunning) return;
-      isRunning = true;
-      intervalId = setInterval(tick, 1000);
-      updateUI();
-    }
+  if (isRunning) return;
+  isRunning = true;
+  requestWakeLock();
+  intervalId = setInterval(tick, 1000);
+  updateUI();
+}
 
     // --- Events ---
     startPauseBtn.addEventListener("click", () => {
